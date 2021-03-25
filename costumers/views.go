@@ -1,39 +1,63 @@
 package costumers
 
 import (
+	"reflect"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/ikaromn/go-api/settings"
 )
 
-func GetAndListCostumer(ctx *fiber.Ctx) error {
+type View struct {
+	model       interface{}
+	models      interface{}
+	lookupField string
+}
+
+func (v View) GetAndListView(ctx *fiber.Ctx) error {
 	db := settings.DbOpenConnection()
 	defer settings.DbCloseConnection(db)
 
-	if ctx.Params("document_id") != "" {
-		var costumer Costumer
-		documentId := ctx.Params("document_id")
-		db.Where("document_id = ?", documentId).Find(&costumer)
-		return ctx.JSON(costumer)
+	if ctx.Params(v.lookupField) != "" {
+		lookupField := ctx.Params(v.lookupField)
+		statemant := v.lookupField + " = ?"
+
+		model := reflect.TypeOf(v.model)
+		m := reflect.New(model).Interface()
+
+		db.Where(statemant, lookupField).Find(m)
+		return ctx.JSON(m)
 	}
-	var costumers []Costumer
-	result := db.Find(&costumers)
-	ApiListResult(ctx, costumers, result.RowsAffected)
+
+	models := reflect.TypeOf(v.models)
+	m := reflect.New(models).Interface()
+
+	result := db.Find(m)
+	ApiListResult(ctx, m, result.RowsAffected)
+
 	return nil
 }
 
-func CreateAndUpdateCostumer(ctx *fiber.Ctx) error {
+func (v View) CreateView(ctx *fiber.Ctx) error {
 	db := settings.DbOpenConnection()
 	defer settings.DbCloseConnection(db)
 
-	var costumer Costumer
-
-	if err := ctx.BodyParser(&costumer); err != nil {
+	model := reflect.TypeOf(v.model)
+	m := reflect.New(model).Interface()
+	if err := ctx.BodyParser(m); err != nil {
 		return err
 	}
 
-	db.Create(&costumer)
-
-	ctx.JSON(costumer)
+	db.Create(m)
+	ctx.JSON(m)
 
 	return nil
+}
+
+var costumer Costumer
+var costumers []Costumer
+
+var CostumersView = View{
+	model:       costumer,
+	models:      costumers,
+	lookupField: "document_id",
 }
